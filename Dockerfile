@@ -1,32 +1,27 @@
-# 构建阶段
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY . .
-
-# 运行时阶段
 FROM node:18-alpine
 
-# 安装 Chromium 和必要依赖
+# 安装必要的工具和 Chromium
 RUN apk add --no-cache \
+    wget \
     chromium \
     nss \
     ca-certificates \
     && rm -rf /var/cache/apk/*
 
+# 设置 Chromium 可执行文件路径
 ENV CHROME_BIN=/usr/bin/chromium-browser
+
+# 代理环境变量（默认空，运行时注入）
+ENV HTTP_PROXY=""
+ENV HTTPS_PROXY=""
+ENV NO_PROXY="localhost,127.0.0.1"
 
 WORKDIR /app
 
-# 只复制必要的文件和生产依赖
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/index.js ./
-# 如果有其他必要文件，按需添加 COPY
+COPY package*.json ./
+RUN npm install --production
+
+COPY . .
 
 EXPOSE 3000
 
