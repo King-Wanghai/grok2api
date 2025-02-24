@@ -7,6 +7,7 @@ import puppeteer from 'puppeteer-extra'
 import StealthPlugin from 'puppeteer-extra-plugin-stealth'
 import { v4 as uuidv4 } from 'uuid';
 import Logger from './logger.js';
+import HttpsProxyAgent from 'https-proxy-agent';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ const CONFIG = {
         TEMP_COOKIE: null,
         PICGO_KEY: process.env.PICGO_KEY || null //想要流式生图的话需要填入这个PICGO图床的key
     },
+    PROXY: process.env.PROXY || '', // 单一代理参数
     SERVER: {
         PORT: process.env.PORT || 3000,
         BODY_LIMIT: '5mb'
@@ -64,6 +66,7 @@ const DEFAULT_HEADERS = {
     'baggage': 'sentry-public_key=b311e0f2690c81f25e2c4cf6d4f7ce1c'
 };
 
+const proxyAgent = CONFIG.PROXY ? new HttpsProxyAgent(CONFIG.PROXY) : null;
 
 async function initialization() {
     const ssoArray = process.env.SSO.split(',');
@@ -207,7 +210,8 @@ class Utils {
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
-                    '--disable-gpu'
+                    '--disable-gpu',
+                    ...proxyArgs // 使用 PROXY 参数
                 ],
                 executablePath: CONFIG.CHROME_PATH
             });
@@ -339,7 +343,8 @@ class GrokApiClient {
                     ...CONFIG.DEFAULT_HEADERS,
                     ...CONFIG.API.SIGNATURE_COOKIE
                 },
-                body: JSON.stringify(uploadData)
+                body: JSON.stringify(uploadData),
+                agent: proxyAgent // 使用单一代理
             });
 
             if (!response.ok) {
@@ -786,7 +791,8 @@ app.post('/v1/chat/completions', async (req, res) => {
                     req: {
                         temporary: false
                     }
-                })
+                }),
+                agent: proxyAgent
             });
 
             const responseText = await newMessageReq.json();
