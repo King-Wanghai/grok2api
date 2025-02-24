@@ -201,47 +201,42 @@ class AuthTokenManager {
 
 class Utils {
     static async extractGrokHeaders() {
-        Logger.info("开始提取头信息", 'Server');
-        try {
-            // 启动浏览器
-            const browser = await puppeteer.launch({
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    ...proxyArgs // 使用 PROXY 参数
-                ],
-                executablePath: CONFIG.CHROME_PATH
-            });
+      Logger.info("开始提取头信息", 'Server');
+      try {
+        // 确保 proxyArgs 在这里定义
+        const proxyArgs = CONFIG.PROXY ? [`--proxy-server=${CONFIG.PROXY}`] : [];
+        const browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            ...proxyArgs // 使用正确定义的 proxyArgs
+          ],
+          executablePath: CONFIG.CHROME_PATH
+        });
 
-            const page = await browser.newPage();
-            await page.goto('https://grok.com/', { waitUntil: 'domcontentloaded' });
-            await page.evaluate(() => {
-                return new Promise(resolve => setTimeout(resolve, 5000))
-            })
-            // 获取所有 Cookies
-            const cookies = await page.cookies();
-            const targetHeaders = ['x-anonuserid', 'x-challenge', 'x-signature'];
-            const extractedHeaders = {};
-            // 遍历 Cookies
-            for (const cookie of cookies) {
-                // 检查是否为目标头信息
-                if (targetHeaders.includes(cookie.name.toLowerCase())) {
-                    extractedHeaders[cookie.name.toLowerCase()] = cookie.value;
-                }
-            }
-            // 关闭浏览器
-            await browser.close();
-            // 打印并返回提取的头信息
-            Logger.info('提取的头信息:', JSON.stringify(extractedHeaders, null, 2), 'Server');
-            return extractedHeaders;
-
-        } catch (error) {
-            Logger.error('获取头信息出错:', error, 'Server');
-            return null;
+        const page = await browser.newPage();
+        await page.goto('https://grok.com/', { waitUntil: 'domcontentloaded' });
+        await page.evaluate(() => {
+          return new Promise(resolve => setTimeout(resolve, 5000));
+        });
+        const cookies = await page.cookies();
+        const targetHeaders = ['x-anonuserid', 'x-challenge', 'x-signature'];
+        const extractedHeaders = {};
+        for (const cookie of cookies) {
+          if (targetHeaders.includes(cookie.name.toLowerCase())) {
+            extractedHeaders[cookie.name.toLowerCase()] = cookie.value;
+          }
         }
+        await browser.close();
+        Logger.info('提取的头信息:', JSON.stringify(extractedHeaders, null, 2), 'Server');
+        return extractedHeaders;
+      } catch (error) {
+        Logger.error('获取头信息出错:', error, 'Server');
+        return null;
+      }
     }
     static async get_signature() {
         if (CONFIG.API.TEMP_COOKIE) {
