@@ -7,7 +7,7 @@ import puppeteer from 'puppeteer-extra'
 import StealthPlugin from 'puppeteer-extra-plugin-stealth'
 import { v4 as uuidv4 } from 'uuid';
 import Logger from './logger.js';
-import HttpsProxyAgent from 'https-proxy-agent';
+import { HttpsProxyAgent } from 'https-proxy-agent'; // 使用命名导出
 
 dotenv.config();
 
