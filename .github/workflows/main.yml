@@ -1,9 +1,9 @@
 name: Build and Push Docker Image
 
 # 触发条件：推送到 main 分支时运行
-on:
+于:
   push:
-    branches:
+    分支:
       - main
 
 jobs:
@@ -30,9 +30,9 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .  # 使用当前目录作为构建上下文
+          context: 。  # 使用当前目录作为构建上下文
           file: ./Dockerfile  # 指定 Dockerfile 路径
           push: true  # 推送镜像到 Docker Hub
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/your-repo:latest  # 镜像名称和标签
-            ${{ secrets.DOCKERHUB_USERNAME }}/your-repo:${{ github.sha }}  # 使用 commit SHA 作为版本标签
+          标签: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/grok2api:latest  # 镜像名称和标签
+            ${{ secrets.DOCKERHUB_USERNAME }}/grok2api:${{ github.sha }}  # 使用 commit SHA 作为版本标签
