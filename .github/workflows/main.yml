@@ -2,9 +2,7 @@ name: Build and Push Docker Image
 
 # 触发条件：推送到 main 分支时运行
 于:
-  push:
-    分支:
-      - main
+  workflow_dispatch:
 
 jobs:
   build-and-push:
