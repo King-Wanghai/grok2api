@@ -192,7 +192,7 @@ class AuthTokenManager {
             const now = Date.now();
             for (const [token, expiredTime] of this.expiredTokens.entries()) {
                 if (now - expiredTime >= 2 * 60 * 60 * 1000) {
-                    this.tokenModelUsage.set(token, {
+                    this.tokenModelFrequency.set(token, {
                         "grok-3": 0,
                         "grok-3-deepsearch": 0,
                         "grok-3-reasoning": 0
