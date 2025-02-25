@@ -873,7 +873,8 @@ app.post('/v1/chat/completions', async (req, res) => {
                     "Connection": "keep-alive",
                     ...CONFIG.API.SIGNATURE_COOKIE
                 },
-                body: JSON.stringify(requestPayload)
+                body: JSON.stringify(requestPayload),
+                agent: proxyAgent
             });
 
             if (response.ok) {
