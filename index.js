@@ -7,12 +7,7 @@ import puppeteer from 'puppeteer-extra'
 import StealthPlugin from 'puppeteer-extra-plugin-stealth'
 import { v4 as uuidv4 } from 'uuid';
 import Logger from './logger.js';
-import { bootstrap } from 'global-agent';
-
-if (process.env.PROXY) {
-  process.env.GLOBAL_AGENT_HTTP_PROXY = process.env.PROXY;
-  bootstrap();
-}
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 dotenv.config();
 
@@ -37,6 +32,7 @@ const CONFIG = {
         PICGO_KEY: process.env.PICGO_KEY || null, //想要流式生图的话需要填入这个PICGO图床的key
         TUMY_KEY: process.env.TUMY_KEY || null //想要流式生图的话需要填入这个TUMY图床的key 两个图床二选一，默认使用PICGO
     },
+    PROXY: process.env.PROXY || '',
     SERVER: {
         PORT: process.env.PORT || 3000,
         BODY_LIMIT: '5mb'
@@ -72,6 +68,7 @@ const DEFAULT_HEADERS = {
     'baggage': 'sentry-public_key=b311e0f2690c81f25e2c4cf6d4f7ce1c'
 };
 
+const proxyAgent = CONFIG.PROXY ? new HttpsProxyAgent(CONFIG.PROXY) : null;
 
 async function initialization() {
     if (CONFIG.API.IS_CUSTOM_SSO) {
@@ -220,7 +217,7 @@ class Utils {
     static async extractGrokHeaders() {
         Logger.info("开始提取头信息", 'Server');
         try {
-            const proxyArgs = process.env.PROXY ? [`--proxy-server=${process.env.PROXY}`] : [];
+            const proxyArgs = CONFIG.PROXY ? [`--proxy-server=${CONFIG.PROXY}`] : [];
             const browser = await puppeteer.launch({
                 headless: true,
                 args: [
@@ -252,7 +249,7 @@ class Utils {
             return extractedHeaders;
 
         } catch (error) {
-            Logger.error('获取头信息出错:', error.message + '\n' + error.stack, 'Server');
+            Logger.error('获取头信息出错:', error, 'Server');
             return null;
         }
     }
@@ -356,7 +353,8 @@ class GrokApiClient {
                     ...CONFIG.DEFAULT_HEADERS,
                     ...CONFIG.API.SIGNATURE_COOKIE
                 },
-                body: JSON.stringify(uploadData)
+                body: JSON.stringify(uploadData),
+                agent: proxyAgent
             });
 
             if (!response.ok) {
@@ -854,7 +852,8 @@ app.post('/v1/chat/completions', async (req, res) => {
                     req: {
                         temporary: false
                     }
-                })
+                }),
+                agent: proxyAgent
             });
             let conversationId;
             var responseText2 = await newMessageReq.clone().text();
@@ -875,7 +874,8 @@ app.post('/v1/chat/completions', async (req, res) => {
                     "Connection": "keep-alive",
                     ...CONFIG.API.SIGNATURE_COOKIE
                 },
-                body: JSON.stringify(requestPayload)
+                body: JSON.stringify(requestPayload),
+                agent: proxyAgent
             });
 
             if (response.ok) {
