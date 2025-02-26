@@ -216,10 +216,9 @@ class AuthTokenManager {
 class Utils {
     static async extractGrokHeaders() {
         Logger.info("开始提取头信息", 'Server');
-        let browser = null;
         try {
             const proxyArgs = CONFIG.PROXY ? [`--proxy-server=${CONFIG.PROXY}`] : [];
-            browser = await puppeteer.launch({
+            const browser = await puppeteer.launch({
                 headless: true,
                 args: [
                     '--no-sandbox',
@@ -251,7 +250,6 @@ class Utils {
 
         } catch (error) {
             Logger.error('获取头信息出错:', error, 'Server');
-            if (browser) await browser.close();
             return null;
         }
     }
