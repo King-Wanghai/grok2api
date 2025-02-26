@@ -231,10 +231,10 @@ class Utils {
             });
 
             const page = await browser.newPage();
-            await page.goto('https://grok.com/', { waitUntil: 'domcontentloaded' });
-            await page.evaluate(() => {
-                return new Promise(resolve => setTimeout(resolve, 5000))
-            })
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36');
+            await page.goto('https://grok.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await page.waitForTimeout(5000);
+            
             // 获取所有 Cookies
             const cookies = await page.cookies();
             const targetHeaders = ['x-anonuserid', 'x-challenge', 'x-signature'];
@@ -250,6 +250,7 @@ class Utils {
 
         } catch (error) {
             Logger.error('获取头信息出错:', error, 'Server');
+            if (browser) await browser.close();
             return null;
         }
     }
@@ -693,7 +694,8 @@ async function handleImageResponse(imageUrl) {
                 headers: {
                     ...DEFAULT_HEADERS,
                     ...CONFIG.API.SIGNATURE_COOKIE
-                }
+                },
+                agent: proxyAgent
             });
 
             if (imageBase64Response.ok) break;
@@ -732,13 +734,14 @@ async function handleImageResponse(imageUrl) {
         });
         const formDataHeaders = formData.getHeaders();
         const responseURL = await fetch("https://www.picgo.net/api/1/upload", {
-            method: "POST",
-            headers: {
-            ...formDataHeaders,
-            "Content-Type": "multipart/form-data",
-            "X-API-Key": CONFIG.API.PICGO_KEY
-        },
-        body: formData
+             method: "POST",
+             headers: {
+                ...formDataHeaders,
+                "Content-Type": "multipart/form-data",
+                "X-API-Key": CONFIG.API.PICGO_KEY
+            },
+            body: formData,
+            agent: proxyAgent
         });
         if (!responseURL.ok) {
             return "生图失败，请查看PICGO图床密钥是否设置正确"
@@ -761,7 +764,8 @@ async function handleImageResponse(imageUrl) {
                 "Accept": "application/json",
                 'Authorization': `Bearer ${CONFIG.API.TUMY_KEY}`
             },
-            body: formData
+            body: formData,
+            agent: proxyAgent
         });
         if (!responseURL.ok) {
             return "生图失败，请查看TUMY图床密钥是否设置正确"
