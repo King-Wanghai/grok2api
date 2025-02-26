@@ -220,6 +220,7 @@ class Utils {
     static async extractGrokHeaders() {
         Logger.info("开始提取头信息", 'Server');
         try {
+            const proxyArgs = process.env.PROXY ? [`--proxy-server=${process.env.PROXY}`] : [];
             const browser = await puppeteer.launch({
                 headless: true,
                 args: [
@@ -227,8 +228,8 @@ class Utils {
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
-                    process.env.PROXY ? `--proxy-server=${process.env.PROXY}` : ''
-                ].filter(Boolean),
+                    ...proxyArgs
+                ],
                 executablePath: CONFIG.CHROME_PATH
             });
 
