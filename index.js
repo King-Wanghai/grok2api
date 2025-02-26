@@ -7,7 +7,12 @@ import puppeteer from 'puppeteer-extra'
 import StealthPlugin from 'puppeteer-extra-plugin-stealth'
 import { v4 as uuidv4 } from 'uuid';
 import Logger from './logger.js';
-import { HttpsProxyAgent } from 'https-proxy-agent'; // 使用命名导出
+import { bootstrap } from 'global-agent';
+
+if (process.env.PROXY) {
+  process.env.GLOBAL_AGENT_HTTP_PROXY = process.env.PROXY;
+  bootstrap();
+}
 
 dotenv.config();
 
@@ -30,9 +35,8 @@ const CONFIG = {
         SIGNATURE_COOKIE: null,
         TEMP_COOKIE: null,
         PICGO_KEY: process.env.PICGO_KEY || null, //想要流式生图的话需要填入这个PICGO图床的key
-        PICUI_KEY: process.env.PICUI_KEY || null //想要流式生图的话需要填入这个PICUI图床的key 两个图床二选一，默认使用PICGO
+        TUMY_KEY: process.env.TUMY_KEY || null //想要流式生图的话需要填入这个TUMY图床的key 两个图床二选一，默认使用PICGO
     },
-    PROXY: process.env.PROXY || '', // 单一代理参数
     SERVER: {
         PORT: process.env.PORT || 3000,
         BODY_LIMIT: '5mb'
@@ -68,7 +72,6 @@ const DEFAULT_HEADERS = {
     'baggage': 'sentry-public_key=b311e0f2690c81f25e2c4cf6d4f7ce1c'
 };
 
-const proxyAgent = CONFIG.PROXY ? new HttpsProxyAgent(CONFIG.PROXY) : null;
 
 async function initialization() {
     if (CONFIG.API.IS_CUSTOM_SSO) {
@@ -76,9 +79,8 @@ async function initialization() {
         return;
     }
     const ssoArray = process.env.SSO.split(',');
-    const ssorwArray = process.env.SSO_RW.split(',');
-    ssoArray.forEach((sso, index) => {
-        tokenManager.addToken(`sso-rw=${ssorwArray[index]};sso=${sso}`);
+    ssoArray.forEach((sso) => {
+        tokenManager.addToken(`sso-rw=${sso};sso=${sso}`);
     });
     console.log(JSON.stringify(tokenManager.getActiveTokens(), null, 2));
     await Utils.get_signature()
@@ -192,7 +194,7 @@ class AuthTokenManager {
             const now = Date.now();
             for (const [token, expiredTime] of this.expiredTokens.entries()) {
                 if (now - expiredTime >= 2 * 60 * 60 * 1000) {
-                    this.tokenModelFrequency.set(token, {
+                    this.tokenModelUsage.set(token, {
                         "grok-3": 0,
                         "grok-3-deepsearch": 0,
                         "grok-3-reasoning": 0
@@ -216,42 +218,42 @@ class AuthTokenManager {
 
 class Utils {
     static async extractGrokHeaders() {
-      Logger.info("开始提取头信息", 'Server');
-      try {
-        // 确保 proxyArgs 在这里定义
-        const proxyArgs = CONFIG.PROXY ? [`--proxy-server=${CONFIG.PROXY}`] : [];
-        const browser = await puppeteer.launch({
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            ...proxyArgs // 使用正确定义的 proxyArgs
-          ],
-          executablePath: CONFIG.CHROME_PATH
-        });
+        Logger.info("开始提取头信息", 'Server');
+        try {
+            const browser = await puppeteer.launch({
+                headless: true,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    process.env.PROXY ? `--proxy-server=${process.env.PROXY}` : '',
+                ],
+                executablePath: CONFIG.CHROME_PATH
+            });
 
-        const page = await browser.newPage();
-        await page.goto('https://grok.com/', { waitUntil: 'domcontentloaded' });
-        await page.evaluate(() => {
-          return new Promise(resolve => setTimeout(resolve, 5000));
-        });
-        const cookies = await page.cookies();
-        const targetHeaders = ['x-anonuserid', 'x-challenge', 'x-signature'];
-        const extractedHeaders = {};
-        for (const cookie of cookies) {
-          if (targetHeaders.includes(cookie.name.toLowerCase())) {
-            extractedHeaders[cookie.name.toLowerCase()] = cookie.value;
-          }
+            const page = await browser.newPage();
+            await page.goto('https://grok.com/', { waitUntil: 'domcontentloaded' });
+            await page.evaluate(() => {
+                return new Promise(resolve => setTimeout(resolve, 5000))
+            })
+            // 获取所有 Cookies
+            const cookies = await page.cookies();
+            const targetHeaders = ['x-anonuserid', 'x-challenge', 'x-signature'];
+            const extractedHeaders = {};
+            for (const cookie of cookies) {
+                if (targetHeaders.includes(cookie.name.toLowerCase())) {
+                    extractedHeaders[cookie.name.toLowerCase()] = cookie.value;
+                }
+            }
+            await browser.close();
+            Logger.info('提取的头信息:', JSON.stringify(extractedHeaders, null, 2), 'Server');
+            return extractedHeaders;
+
+        } catch (error) {
+            Logger.error('获取头信息出错:', error, 'Server');
+            return null;
         }
-        await browser.close();
-        Logger.info('提取的头信息:', JSON.stringify(extractedHeaders, null, 2), 'Server');
-        return extractedHeaders;
-      } catch (error) {
-        Logger.error('获取头信息出错:', error, 'Server');
-        return null;
-      }
     }
     static async get_signature() {
         if (CONFIG.API.TEMP_COOKIE) {
@@ -353,8 +355,7 @@ class GrokApiClient {
                     ...CONFIG.DEFAULT_HEADERS,
                     ...CONFIG.API.SIGNATURE_COOKIE
                 },
-                body: JSON.stringify(uploadData),
-                agent: proxyAgent // 使用单一代理
+                body: JSON.stringify(uploadData)
             });
 
             if (!response.ok) {
@@ -373,7 +374,7 @@ class GrokApiClient {
     }
 
     async prepareChatRequest(request) {
-        if ((request.model === 'grok-2-imageGen' || request.model === 'grok-3-imageGen') && !CONFIG.API.PICGO_KEY && !CONFIG.API.PICUI_KEY && request.stream) {
+        if ((request.model === 'grok-2-imageGen' || request.model === 'grok-3-imageGen') && !CONFIG.API.PICGO_KEY && !CONFIG.API.TUMY_KEY && request.stream) {
             throw new Error(`该模型流式输出需要配置PICGO或者PICUI图床密钥!`);
         }
 
@@ -591,6 +592,9 @@ async function handleResponse(response, model, res, isStream) {
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
         }
+        CONFIG.IS_THINKING = false;
+        CONFIG.IS_IMG_GEN = false;
+        CONFIG.IS_IMG_GEN2 = false;
         Logger.info("开始处理流式响应", 'Server');
 
         return new Promise((resolve, reject) => {
@@ -660,8 +664,6 @@ async function handleResponse(response, model, res, isStream) {
                             res.json(MessageProcessor.createChatResponse(fullResponse, model));
                         }
                     }
-                    CONFIG.IS_IMG_GEN = false;
-                    CONFIG.IS_IMG_GEN2 = false;
                     resolve();
                 } catch (error) {
                     Logger.error(error, 'Server');
@@ -676,8 +678,6 @@ async function handleResponse(response, model, res, isStream) {
         });
     } catch (error) {
         Logger.error(error, 'Server');
-        CONFIG.IS_IMG_GEN = false;
-        CONFIG.IS_IMG_GEN2 = false;
         throw new Error(error);
     }
 }
@@ -718,12 +718,13 @@ async function handleImageResponse(imageUrl) {
     const arrayBuffer = await imageBase64Response.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
-    if (!CONFIG.API.PICGO_KEY && !CONFIG.API.PICUI_KEY) {
+    if (!CONFIG.API.PICGO_KEY && !CONFIG.API.TUMY_KEY) {
         const base64Image = imageBuffer.toString('base64');
         const imageContentType = imageBase64Response.headers.get('content-type');
         return `![image](data:${imageContentType};base64,${base64Image})`
     }
 
+    Logger.info("开始上传图床", 'Server');
     const formData = new FormData();
     if(CONFIG.API.PICGO_KEY){
         formData.append('source', imageBuffer, {
@@ -741,34 +742,39 @@ async function handleImageResponse(imageUrl) {
         body: formData
         });
         if (!responseURL.ok) {
-            return "生图失败，请查看图床密钥是否设置正确"
+            return "生图失败，请查看PICGO图床密钥是否设置正确"
         } else {
             Logger.info("生图成功", 'Server');
             const result = await responseURL.json();
             return `![image](${result.image.url})`
         }
-    }else if(CONFIG.API.PICUI_KEY){
+    }else if(CONFIG.API.TUMY_KEY){
         const formData = new FormData();
         formData.append('file', imageBuffer, {
             filename: `image-${Date.now()}.jpg`,
             contentType: 'image/jpeg'
         });
         const formDataHeaders = formData.getHeaders();
-        const responseURL = await fetch("https://picui.cn/api/v1/upload", {
+        const responseURL = await fetch("https://tu.my/api/v1/upload", {
             method: "POST",
             headers: {
                 ...formDataHeaders,
                 "Accept": "application/json",
-                'Authorization': `Bearer ${CONFIG.API.PICUI_KEY}`
+                'Authorization': `Bearer ${CONFIG.API.TUMY_KEY}`
             },
             body: formData
         });
         if (!responseURL.ok) {
-            return "生图失败，请查看图床密钥是否设置正确"
+            return "生图失败，请查看TUMY图床密钥是否设置正确"
         } else {
-            Logger.info("生图成功", 'Server');
-            const result = await responseURL.json();
-            return `![image](${result.data.links.url})`
+            try {
+                const result = await responseURL.json();
+                Logger.info("生图成功", 'Server');
+                return `![image](${result.data.links.url})`
+            } catch (error) {
+                Logger.error(error, 'Server');
+                return "生图失败，请查看TUMY图床密钥是否设置正确"
+            }
         }
     }
 }
@@ -804,15 +810,11 @@ app.post('/v1/chat/completions', async (req, res) => {
     try {
         const authToken = req.headers.authorization?.replace('Bearer ', '');
         if (CONFIG.API.IS_CUSTOM_SSO) {
-            if (authToken && authToken.includes(';')) {
-                const parts = authToken.split(';');
-                const result = [
-                    `sso=${parts[0]}`,
-                    `ssp_rw=${parts[1]}`
-                ].join(';');
+            if (authToken) {
+                const result = `sso=${authToken};ssp_rw=${authToken}`;
                 tokenManager.setToken(result);
             } else {
-                return res.status(401).json({ error: '自定义的SSO令牌格式错误' });
+                return res.status(401).json({ error: '自定义的SSO令牌缺失' });
             }
         } else if (authToken !== CONFIG.API.API_KEY) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -836,7 +838,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                 CONFIG.API.SIGNATURE_COOKIE = await Utils.createAuthHeaders(req.body.model);
             }
             if (!CONFIG.API.SIGNATURE_COOKIE) {
-                throw new Error('无可用令牌');
+                throw new Error('该模型无可用令牌');
             }
             Logger.info(`当前令牌索引: ${CONFIG.SSO_INDEX}`, 'Server');
             Logger.info(`当前令牌: ${JSON.stringify(CONFIG.API.SIGNATURE_COOKIE,null,2)}`, 'Server');
@@ -851,8 +853,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                     req: {
                         temporary: false
                     }
-                }),
-                agent: proxyAgent
+                })
             });
             let conversationId;
             var responseText2 = await newMessageReq.clone().text();
@@ -860,7 +861,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                 const responseText = await newMessageReq.json();
                 conversationId = responseText.conversationId;
             } else {
-                Logger.error(`创建会话请求: ${responseText2}`, 'Server');
+                Logger.error(`创建会话响应错误: ${responseText2}`, 'Server');
                 throw new Error(`创建会话响应错误: ${responseText2}`);
             }
 
@@ -873,8 +874,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                     "Connection": "keep-alive",
                     ...CONFIG.API.SIGNATURE_COOKIE
                 },
-                body: JSON.stringify(requestPayload),
-                agent: proxyAgent
+                body: JSON.stringify(requestPayload)
             });
 
             if (response.ok) {
