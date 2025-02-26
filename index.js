@@ -226,8 +226,7 @@ class Utils {
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    process.env.PROXY ? `--proxy-server=${process.env.PROXY}` : '',
+                    '--disable-gpu'
                 ],
                 executablePath: CONFIG.CHROME_PATH
             });
@@ -251,7 +250,7 @@ class Utils {
             return extractedHeaders;
 
         } catch (error) {
-            Logger.error('获取头信息出错:', error, 'Server');
+            Logger.error('获取头信息出错:', error.message + '\n' + error.stack, 'Server');
             return null;
         }
     }
