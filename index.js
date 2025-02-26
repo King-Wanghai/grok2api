@@ -216,9 +216,10 @@ class AuthTokenManager {
 class Utils {
     static async extractGrokHeaders() {
         Logger.info("开始提取头信息", 'Server');
+        let browser = null;
         try {
             const proxyArgs = CONFIG.PROXY ? [`--proxy-server=${CONFIG.PROXY}`] : [];
-            const browser = await puppeteer.launch({
+            browser = await puppeteer.launch({
                 headless: true,
                 args: [
                     '--no-sandbox',
