@@ -50,7 +50,7 @@ const CONFIG = {
     IS_IMG_GEN2: false,
     SSO_INDEX: 0,//sso的索引
     ISSHOW_SEARCH_RESULTS: process.env.ISSHOW_SEARCH_RESULTS === 'true',//是否显示搜索结果
-    CHROME_PATH: process.env.CHROME_PATH || "/usr/bin/chromium"//chrome路径
+    CHROME_PATH: process.env.CHROME_PATH || "/usr/bin/chromium-browser"//chrome路径
 };
 puppeteer.use(StealthPlugin())
 // 请求头配置
