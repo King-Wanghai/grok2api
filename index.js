@@ -231,10 +231,10 @@ class Utils {
             });
 
             const page = await browser.newPage();
-            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36');
-            await page.goto('https://grok.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await page.waitForTimeout(5000);
-            
+            await page.goto('https://grok.com/', { waitUntil: 'domcontentloaded' });
+            await page.evaluate(() => {
+                return new Promise(resolve => setTimeout(resolve, 5000))
+            })
             // 获取所有 Cookies
             const cookies = await page.cookies();
             const targetHeaders = ['x-anonuserid', 'x-challenge', 'x-signature'];
