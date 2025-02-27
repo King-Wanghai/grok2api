@@ -102,7 +102,93 @@ async function initialization() {
     Logger.info("初始化完成", 'Server');
 }
 
-  
+class AuthTokenManager {
+    constructor() {
+        this.tokenModelMap = {};
+        this.expiredTokens = new Set();
+
+        // 定义模型请求频率限制和过期时间
+        this.modelConfig = {
+            "grok-2": {
+                RequestFrequency: 20,
+                ExpirationTime: 2 * 60 * 60 * 1000 // 2小时
+            },
+            "grok-3": {
+                RequestFrequency: 20,
+                ExpirationTime: 2 * 60 * 60 * 1000 // 2小时
+            },
+            "grok-3-deepsearch": {
+                RequestFrequency: 10,
+                ExpirationTime: 24 * 60 * 60 * 1000 // 24小时
+            },
+            "grok-3-reasoning": {
+                RequestFrequency: 10,
+                ExpirationTime: 24 * 60 * 60 * 1000 // 24小时
+            }
+        };
+        this.tokenResetSwitch = false;
+    }
+
+    addToken(token) {
+        Object.keys(this.modelConfig).forEach(model => {
+            if (!this.tokenModelMap[model]) {
+                this.tokenModelMap[model] = [];
+            }
+            const existingTokenEntry = this.tokenModelMap[model].find(entry => entry.token === token);
+
+            if (!existingTokenEntry) {
+                this.tokenModelMap[model].push({
+                    token: token,
+                    RequestCount: 0,
+                    AddedTime: Date.now()
+                });
+            }
+        });
+    }
+
+    //直接设置token,仅适用于自己设置轮询而不是使用AuthTokenManager管理
+    setToken(token) {
+        const models = ["grok-2", "grok-3", "grok-3-reasoning", "grok-3-deepsearch"];
+        
+        this.tokenModelMap = models.reduce((map, model) => {
+            map[model] = [{
+                token,
+                RequestCount: 0,
+                AddedTime: Date.now()
+            }];
+            return map;
+        }, {});
+    }
+
+    getNextTokenForModel(modelId) {
+        const normalizedModel = this.normalizeModelName(modelId);
+
+        if (!this.tokenModelMap[normalizedModel] || this.tokenModelMap[normalizedModel].length === 0) {
+            return null;
+        }
+        const tokenEntry = this.tokenModelMap[normalizedModel][0];
+
+        if (tokenEntry) {
+            tokenEntry.RequestCount++;
+            if (tokenEntry.RequestCount > this.modelConfig[normalizedModel].RequestFrequency) {
+                this.removeTokenFromModel(normalizedModel, tokenEntry.token);
+                const nextTokenEntry = this.tokenModelMap[normalizedModel][0];
+                return nextTokenEntry ? nextTokenEntry.token : null;
+            }
+
+            return tokenEntry.token;
+        }
+
+        return null;
+    }
+
+    removeTokenFromModel(modelId, token) {
+        const normalizedModel = this.normalizeModelName(modelId);
+        
+        if (!this.tokenModelMap[normalizedModel]) {
+            Logger.error(`模型 ${normalizedModel} 不存在`, 'TokenManager');
+            return false;
+        }
         const modelTokens = this.tokenModelMap[normalizedModel];
         const tokenIndex = modelTokens.findIndex(entry => entry.token === token);
   
