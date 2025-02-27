@@ -1073,12 +1073,14 @@ app.post('/v1/chat/completions', async (req, res) => {
         throw new Error('当前模型所有令牌都已耗尽');
     } catch (error) {
         Logger.error(error, 'ChatAPI');
-        res.status(500).json({
-            error: {
-                message: error.message || error,
-                type: 'server_error'
-            }
-        });
+        if (!res.headersSent) { // 检查头部是否已发送
+            res.status(500).json({
+                error: {
+                    message: error.message || error,
+                    type: 'server_error'
+                }
+            });
+        }
     }
 });
 
