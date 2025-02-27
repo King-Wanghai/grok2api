@@ -266,6 +266,72 @@ class AuthTokenManager {
         const normalizedModel = this.normalizeModelName(modelId);
         return this.tokenModelMap[normalizedModel] || [];
     }
+        if (!this.tokenModelMap[normalizedModel]) {
+            Logger.error(`模型 ${normalizedModel} 不存在`, 'TokenManager');
+            return false;
+        }
+  
+        const modelTokens = this.tokenModelMap[normalizedModel];
+        const tokenIndex = modelTokens.findIndex(entry => entry.token === token);
+  
+        if (tokenIndex !== -1) {
+            const removedTokenEntry = modelTokens.splice(tokenIndex, 1)[0];
+            this.expiredTokens.add({
+                token: removedTokenEntry.token,
+                model: normalizedModel,
+                expiredTime: Date.now()
+            });
+            if(!this.tokenResetSwitch){
+                this.startTokenResetProcess();
+                this.tokenResetSwitch = true;
+            }
+            Logger.info(`模型${modelId}的令牌已失效，已成功移除令牌: ${token}`, 'TokenManager');
+            return true;
+        }
+  
+        Logger.error(`在模型 ${normalizedModel} 中未找到 token: ${token}`, 'TokenManager');
+        return false;
+    }
+  
+    getExpiredTokens() {
+        return Array.from(this.expiredTokens);
+    }
+
+    normalizeModelName(model) {
+        if (model.startsWith('grok-') && !model.includes('deepsearch') && !model.includes('reasoning')) {
+            return model.split('-').slice(0, 2).join('-');
+        }
+        return model;
+    }
+
+    getTokenCountForModel(modelId) {
+        const normalizedModel = this.normalizeModelName(modelId);
+        return this.tokenModelMap[normalizedModel]?.length || 0;
+    }
+    getRemainingTokenRequestCapacity() {
+        const remainingCapacityMap = {};
+  
+        Object.keys(this.modelConfig).forEach(model => {
+            const modelTokens = this.tokenModelMap[model] || [];
+            
+            const modelRequestFrequency = this.modelConfig[model].RequestFrequency;
+  
+            const totalUsedRequests = modelTokens.reduce((sum, tokenEntry) => {
+                return sum + (tokenEntry.RequestCount || 0);
+            }, 0);
+  
+            // 计算剩余可用请求数量
+            const remainingCapacity = (modelTokens.length * modelRequestFrequency) - totalUsedRequests;
+            remainingCapacityMap[model] = Math.max(0, remainingCapacity);
+        });
+  
+        return remainingCapacityMap;
+    }
+
+    getTokenArrayForModel(modelId) {
+        const normalizedModel = this.normalizeModelName(modelId);
+        return this.tokenModelMap[normalizedModel] || [];
+    }
 
     startTokenResetProcess() {
         setInterval(() => {
