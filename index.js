@@ -189,6 +189,7 @@ class AuthTokenManager {
             Logger.error(`模型 ${normalizedModel} 不存在`, 'TokenManager');
             return false;
         }
+        
         const modelTokens = this.tokenModelMap[normalizedModel];
         const tokenIndex = modelTokens.findIndex(entry => entry.token === token);
   
