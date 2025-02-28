@@ -156,7 +156,8 @@ class AuthTokenManager {
             body: JSON.stringify({
                 "requestKind": requestKind,
                 "modelName": modelName == 'grok-2' ? 'grok-latest' : "grok-3"
-            })
+            }),
+            agent: proxyAgent
         });
 
         if (response.status != 200) {
