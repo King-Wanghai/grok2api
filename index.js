@@ -473,7 +473,7 @@ class AuthTokenManager {
         return this.tokenStatusMap;
     }
 }
-            
+
 class Utils {
     static delay(time) {
         return new Promise(function (resolve) {
@@ -1231,7 +1231,6 @@ app.post('/v1/chat/completions', async (req, res) => {
                 } catch (error) {
                     Logger.error(error, 'Server');
                     if (isTempCookie) {
-                        // 移除当前失效的 cookie
                         tempCookieManager.cookies.splice(tempCookieManager.currentIndex, 1);
                         if (tempCookieManager.cookies.length != 0) {
                             tempCookieManager.currentIndex = tempCookieManager.currentIndex % tempCookieManager.cookies.length;
