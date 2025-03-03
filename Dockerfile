@@ -4,12 +4,6 @@ FROM python:3.10-slim
 # 设置工作目录
 WORKDIR /app
 
-# 安装时区数据并设置时区为东八区 (Asia/Shanghai)
-RUN apt-get update && apt-get install -y tzdata && \
-    ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
-    echo "Asia/Shanghai" > /etc/timezone && \
-    dpkg-reconfigure -f noninteractive tzdata
-
 # 安装所需的 Python 依赖
 RUN pip install --no-cache-dir flask requests curl_cffi werkzeug loguru
 
