@@ -1,10 +1,10 @@
 
-# grok2API 接入指南：基于 Docker 的实现
+# grok2API 接入指南：基于 python 的实现
 
 ## 项目简介
 本项目提供了一种简单、高效的方式通过 Docker 部署 使用openAI的格式转换调用grok官网，进行api处理。
 
->原版nodej版本已失效，现在已重构为python，支持自动过cf屏蔽盾，需要自己ip没有被屏蔽。
+>支持自动过cf屏蔽盾，需要自己ip没有被屏蔽。
 
 ## 方法一：Docker部署
 
