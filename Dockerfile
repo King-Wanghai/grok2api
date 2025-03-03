@@ -7,8 +7,8 @@ WORKDIR /app
 # 安装所需的 Python 依赖
 RUN pip install --no-cache-dir flask requests curl_cffi werkzeug loguru
 
-# 复制应用代码到容器
-COPY . /app/
+# 复制 app.py 到容器中的 /app/ 目录
+COPY app.py /app/
 
 # 设置环境变量
 ENV PORT=3000
