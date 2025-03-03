@@ -93,6 +93,7 @@ CONFIG = {
         "grok-3-reasoning": "grok-3"
     },
     "API": {
+        "IS_TEMP_CONVERSATION": os.environ.get("IS_TEMP_CONVERSATION", "false").lower() == "true",
         "IS_CUSTOM_SSO": os.environ.get("IS_CUSTOM_SSO", "false").lower() == "true",
         "BASE_URL": "https://grok.com",
         "API_KEY": os.environ.get("API_KEY", "sk-123456"),
@@ -567,7 +568,7 @@ class GrokApiClient:
                     last_role = role
         
         return {
-            "temporary": CONFIG["API"].get("IS_TEMP_CONVERSATION", False),
+            "temporary": CONFIG["API"]["IS_TEMP_CONVERSATION"],
             "modelName": self.model_id,
             "message": messages.strip(),
             "fileAttachments": file_attachments[:4],
