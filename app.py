@@ -765,27 +765,23 @@ def handle_image_response(image_url):
 
 def handle_non_stream_response(response, model):
     try:
-        content = response.text
-        lines = content.split('\n')
+        logger.info("开始处理非流式响应", "Server")
+
+        stream = response.iter_lines()
         full_response = ""
 
         CONFIG["IS_THINKING"] = False
         CONFIG["IS_IMG_GEN"] = False
         CONFIG["IS_IMG_GEN2"] = False
-        
-        logger.info("开始处理非流式响应", "Server")
-        
-        for line in lines:
-            if not line.strip():
+
+        for chunk in stream:
+            if not chunk:
                 continue
-            
             try:
-                line_json = json.loads(line.strip())
+                line_json = json.loads(chunk.decode("utf-8").strip()) 
                 if line_json.get("error"):
                     logger.error(json.dumps(line_json, indent=2), "Server")
-                    if line_json.get("error", {}).get("name") == "RateLimitError":
-                        CONFIG["API"]["TEMP_COOKIE"] = None
-                    raise ValueError("RateLimitError")
+                    return json.dumps({"error": "RateLimitError"}) + "\n\n"
                 
                 response_data = line_json.get("result", {}).get("response")
                 if not response_data:
@@ -806,23 +802,22 @@ def handle_non_stream_response(response, model):
             except json.JSONDecodeError:
                 continue
             except Exception as e:
-                logger.error(f"处理响应行时出错: {str(e)}", "Server")
+                logger.error(f"处理流式响应行时出错: {str(e)}", "Server")
                 continue
-        
+
         return full_response
-    
     except Exception as error:
         logger.error(str(error), "Server")
         raise
 
 def handle_stream_response(response, model):
     def generate():
-        stream = response.iter_lines()
+        logger.info("开始处理流式响应", "Server")
 
+        stream = response.iter_lines()
         CONFIG["IS_THINKING"] = False
         CONFIG["IS_IMG_GEN"] = False
         CONFIG["IS_IMG_GEN2"] = False
-        logger.info("开始处理流式响应", "Server")
 
         for chunk in stream:
             if not chunk:
