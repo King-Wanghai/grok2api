@@ -26,11 +26,11 @@ class Logger:
             )
 
         logger.add(
-            sys.stderr， 
+            sys.stderr, 
             level=level, 
             format=format,
             colorize=colorize,
-            backtrace=True，
+            backtrace=True,
             diagnose=True
         )
 
@@ -39,12 +39,12 @@ class Logger:
     def _get_caller_info(self):
         frame = inspect.currentframe()
         try:
-            caller_frame = frame.f_back。f_back
-            full_path = caller_frame.f_code。co_filename
-            function = caller_frame.f_code。co_name
+            caller_frame = frame.f_back.f_back
+            full_path = caller_frame.f_code.co_filename
+            function = caller_frame.f_code.co_name
             lineno = caller_frame.f_lineno
             
-            filename = os.path。basename(full_path)
+            filename = os.path.basename(full_path)
             
             return {
                 'filename': filename,
@@ -56,49 +56,49 @@ class Logger:
 
     def info(self, message, source="API"):
         caller_info = self._get_caller_info()
-        self.logger。bind(**caller_info)。info(f"[{source}] {message}")
+        self.logger.bind(**caller_info).info(f"[{source}] {message}")
         
     def error(self, message, source="API"):
         caller_info = self._get_caller_info()
         
         if isinstance(message, Exception):
-            self.logger。bind(**caller_info)。exception(f"[{source}] {str(message)}")
+            self.logger.bind(**caller_info).exception(f"[{source}] {str(message)}")
         else:
-            self.logger。bind(**caller_info)。error(f"[{source}] {message}")
+            self.logger.bind(**caller_info).error(f"[{source}] {message}")
     
     def warning(self, message, source="API"):
         caller_info = self._get_caller_info()
-        self.logger。bind(**caller_info)。warning(f"[{source}] {message}")
+        self.logger.bind(**caller_info).warning(f"[{source}] {message}")
     
     def debug(self, message, source="API"):
         caller_info = self._get_caller_info()
-        self.logger。bind(**caller_info)。debug(f"[{source}] {message}")
+        self.logger.bind(**caller_info).debug(f"[{source}] {message}")
 
     async def request_logger(self, request):
         caller_info = self._get_caller_info()
-        self.logger。bind(**caller_info)。info(f"请求: {request.method} {request.path}"， "Request")
+        self.logger.bind(**caller_info).info(f"请求: {request.method} {request.path}", "Request")
 
 logger = Logger(level="INFO")
 
 
 CONFIG = {
     "MODELS": {
-        'grok-2': 'grok-latest'，
-        'grok-2-imageGen': 'grok-latest'，
-        'grok-2-search': 'grok-latest'，
-        "grok-3": "grok-3"，
-        "grok-3-search": "grok-3"，
-        "grok-3-imageGen": "grok-3"，
+        'grok-2': 'grok-latest',
+        'grok-2-imageGen': 'grok-latest',
+        'grok-2-search': 'grok-latest',
+        "grok-3": "grok-3",
+        "grok-3-search": "grok-3",
+        "grok-3-imageGen": "grok-3",
         "grok-3-deepsearch": "grok-3",
         "grok-3-reasoning": "grok-3"
-    }，
+    },
     "API": {
-        "IS_TEMP_CONVERSATION": os.environ。get("IS_TEMP_CONVERSATION"， "false")。lower() == "true"，
-        "IS_CUSTOM_SSO": os.environ。get("IS_CUSTOM_SSO"， "false")。lower() == "true"，
-        "BASE_URL": "https://grok.com"，
-        "API_KEY": os.environ。get("API_KEY"， "sk-123456")，
-        "SIGNATURE_COOKIE": None，
-        "PICGO_KEY": os.environ。get("PICGO_KEY") 或 None，
+        "IS_TEMP_CONVERSATION": os.environ.get("IS_TEMP_CONVERSATION", "false").lower() == "true",
+        "IS_CUSTOM_SSO": os.environ.get("IS_CUSTOM_SSO", "false").lower() == "true",
+        "BASE_URL": "https://grok.com",
+        "API_KEY": os.environ.get("API_KEY", "sk-123456"),
+        "SIGNATURE_COOKIE": None,
+        "PICGO_KEY": os.environ.get("PICGO_KEY") or None,
         "TUMY_KEY": os.environ.get("TUMY_KEY") or None,
         "RETRY_TIME": 1000,
         "PROXY": os.environ.get("PROXY") or None
@@ -311,7 +311,7 @@ class AuthTokenManager:
     
     def start_token_reset_process(self):
         def reset_expired_tokens():
-            现在 = int(time.time() * 1000)
+            now = int(time.time() * 1000)
             
             tokens_to_remove = set()
             for token_info in self.expired_tokens:
@@ -762,25 +762,30 @@ def handle_image_response(image_url):
                 logger.error(str(error), "Server")
                 return "生图失败，请查看TUMY图床密钥是否设置正确"
 
+
 def handle_non_stream_response(response, model):
     try:
-        logger.info("开始处理非流式响应", "Server")
-
-        stream = response.iter_lines()
+        content = response.text
+        lines = content.split('\n')
         full_response = ""
 
         CONFIG["IS_THINKING"] = False
         CONFIG["IS_IMG_GEN"] = False
         CONFIG["IS_IMG_GEN2"] = False
-
-        for chunk in stream:
-            if not chunk:
+        
+        logger.info("开始处理非流式响应", "Server")
+        
+        for line in lines:
+            if not line.strip():
                 continue
+            
             try:
-                line_json = json.loads(chunk.decode("utf-8").strip()) 
+                line_json = json.loads(line.strip())
                 if line_json.get("error"):
                     logger.error(json.dumps(line_json, indent=2), "Server")
-                    return json.dumps({"error": "RateLimitError"}) + "\n\n"
+                    if line_json.get("error", {}).get("name") == "RateLimitError":
+                        CONFIG["API"]["TEMP_COOKIE"] = None
+                    raise ValueError("RateLimitError")
                 
                 response_data = line_json.get("result", {}).get("response")
                 if not response_data:
@@ -801,22 +806,23 @@ def handle_non_stream_response(response, model):
             except json.JSONDecodeError:
                 continue
             except Exception as e:
-                logger.error(f"处理流式响应行时出错: {str(e)}", "Server")
+                logger.error(f"处理响应行时出错: {str(e)}", "Server")
                 continue
-
+        
         return full_response
+    
     except Exception as error:
         logger.error(str(error), "Server")
         raise
 
 def handle_stream_response(response, model):
     def generate():
-        logger.info("开始处理流式响应", "Server")
-
         stream = response.iter_lines()
+
         CONFIG["IS_THINKING"] = False
         CONFIG["IS_IMG_GEN"] = False
         CONFIG["IS_IMG_GEN2"] = False
+        logger.info("开始处理流式响应", "Server")
 
         for chunk in stream:
             if not chunk:
