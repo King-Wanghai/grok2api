@@ -93,7 +93,7 @@ CONFIG = {
         "grok-3-reasoning": "grok-3"
     },
     "API": {
-        "IS_TEMP_CONVERSATION": os.environ.get("IS_TEMP_CONVERSATION", "false").lower() == "true",
+        "IS_TEMP_CONVERSATION": os.environ.get("IS_TEMP_CONVERSATION", "true").lower() == "true",
         "IS_CUSTOM_SSO": os.environ.get("IS_CUSTOM_SSO", "false").lower() == "true",
         "BASE_URL": "https://grok.com",
         "API_KEY": os.environ.get("API_KEY", "sk-123456"),
@@ -217,7 +217,39 @@ class AuthTokenManager:
         except Exception as error:
             logger.error(f"令牌删除失败: {str(error)}")
             return False
-
+    def reduce_token_request_count(self, model_id, count):
+        try:
+            normalized_model = self.normalize_model_name(model_id)
+            
+            if normalized_model not in self.token_model_map:
+                logger.error(f"模型 {normalized_model} 不存在", "TokenManager")
+                return False
+                
+            if not self.token_model_map[normalized_model]:
+                logger.error(f"模型 {normalized_model} 没有可用的token", "TokenManager")
+                return False
+                
+            token_entry = self.token_model_map[normalized_model][0]
+            
+            # 确保RequestCount不会小于0
+            new_count = max(0, token_entry["RequestCount"] - count)
+            reduction = token_entry["RequestCount"] - new_count
+            
+            token_entry["RequestCount"] = new_count
+            
+            # 更新token状态
+            if token_entry["token"]:
+                sso = token_entry["token"].split("sso=")[1].split(";")[0]
+                if sso in self.token_status_map and normalized_model in self.token_status_map[sso]:
+                    self.token_status_map[sso][normalized_model]["totalRequestCount"] = max(
+                        0, 
+                        self.token_status_map[sso][normalized_model]["totalRequestCount"] - reduction
+                    )
+            return True
+            
+        except Exception as error:
+            logger.error(f"重置校对token请求次数时发生错误: {str(error)}", "TokenManager")
+            return False
     def get_next_token_for_model(self, model_id):
         normalized_model = self.normalize_model_name(model_id)
 
@@ -411,12 +443,17 @@ class Utils:
 
         if proxy:
             logger.info(f"使用代理: {proxy}", "Server")
-            proxy_options["proxies"] = {"https": proxy, "http": proxy}
-
             if proxy.startswith("socks5://"):
+                proxy_options["proxy"] = proxy
+            
+                if '@' in proxy:
+                    auth_part = proxy.split('@')[0].split('://')[1]
+                    if ':' in auth_part:
+                        username, password = auth_part.split(':')
+                        proxy_options["proxy_auth"] = (username, password)
+            else:
                 proxy_options["proxies"] = {"https": proxy, "http": proxy}
-                proxy_options["proxy_type"] = "socks5"
-
+        print(proxy_options)        
         return proxy_options
 
 class GrokApiClient:
@@ -956,6 +993,7 @@ def chat_completions():
         retry_count = 0
         grok_client = GrokApiClient(model)
         request_payload = grok_client.prepare_chat_request(data)
+        response_status_code = 500
 
         while retry_count < CONFIG["RETRY"]["MAX_ATTEMPTS"]:
             retry_count += 1
@@ -985,6 +1023,7 @@ def chat_completions():
                     stream=True,
                     **proxy_options)
                 if response.status_code == 200:
+                    response_status_code = 200
                     logger.info("请求成功", "Server")
                     logger.info(
                         f"当前{model}剩余可用令牌数: {token_manager.get_token_count_for_model(model)}",
@@ -1011,8 +1050,15 @@ def chat_completions():
                             model, CONFIG["API"]["SIGNATURE_COOKIE"])
                         if token_manager.get_token_count_for_model(model) == 0:
                             raise ValueError(f"{model} 次数已达上限，请切换其他模型或者重新对话")
-
+                elif response.status_code == 403:
+                    response_status_code = 403
+                    token_manager.reduce_token_request_count(model,1)#重置去除当前因为错误未成功请求的次数，确保不会因为错误未成功请求的次数导致次数上限
+                    if token_manager.get_token_count_for_model(model) == 0:
+                        raise ValueError(f"{model} 次数已达上限，请切换其他模型或者重新对话")
+                    raise ValueError(f"IP暂时被封黑无法破盾，请稍后重试或者更换ip")
                 elif response.status_code == 429:
+                    response_status_code = 429
+                    token_manager.reduce_token_request_count(model,1)
                     if CONFIG["API"]["IS_CUSTOM_SSO"]:
                         raise ValueError(f"自定义SSO令牌当前模型{model}的请求次数已失效")
 
@@ -1038,8 +1084,10 @@ def chat_completions():
                 if CONFIG["API"]["IS_CUSTOM_SSO"]:
                     raise
                 continue
-
-        raise ValueError('当前模型所有令牌都已耗尽')
+        if response_status_code == 403:
+            raise ValueError('IP暂时被封黑无法破盾，请稍后重试或者更换ip')
+        elif response_status_code == 500:
+            raise ValueError('当前模型所有令牌暂无可用，请稍后重试')    
 
     except Exception as error:
         logger.error(str(error), "ChatAPI")
@@ -1047,7 +1095,7 @@ def chat_completions():
             {"error": {
                 "message": str(error),
                 "type": "server_error"
-            }}), 500
+            }}), response_status_code
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
