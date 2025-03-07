@@ -81,12 +81,12 @@ CONFIG = {
         "IS_TEMP_CONVERSATION": os.environ.get("IS_TEMP_CONVERSATION", "true").lower() == "true",
         "IS_CUSTOM_SSO": os.environ.get("IS_CUSTOM_SSO", "false").lower() == "true",
         "BASE_URL": "https://grok.com",
-        "API_KEY": os.environ.get("API_KEY", "sk-eOhTKoK17VOVAyvJFJLsEypQ0gMrZ6CS"),
+        "API_KEY": os.environ.get("API_KEY", "sk-1234556"),
         "SIGNATURE_COOKIE": None,
         "PICGO_KEY": os.environ.get("PICGO_KEY") or None,
         "TUMY_KEY": os.environ.get("TUMY_KEY") or None,
         "RETRY_TIME": 1000,
-        "PROXY": "http://127.0.0.1:7890",
+        "PROXY": os.environ.get("PROXY") or None,
         "PROXY_POOL": os.environ.get("PROXY_POOL", "").split(",") if os.environ.get("PROXY_POOL") else []
     },
     "SERVER": {
@@ -556,7 +556,7 @@ class GrokApiClient:
                     last_content = text_content
                     last_role = role
         return {
-            "temporary": CONFIG["API"].get("IS_TEMP_CONVERSATION", False),
+            "temporary": CONFIG["API"]["IS_TEMP_CONVERSATION"],
             "modelName": self.model_id,
             "message": messages.strip(),
             "fileAttachments": file_attachments[:4],
@@ -773,7 +773,7 @@ def handle_stream_response(response, model):
 
 
 def initialization():
-    sso_array = ["eyJhbGciOiJIUzI1NiJ9.eyJzZXNzaW9uX2lkIjoiMTI3OTc4ZTMtZTc4MC00OTMwLTg0MzktNGE1MWQ5YjU1M2E5In0.uAlhdZanfz1nc-IpW445-pHvcLLMZ2hH-XKMyhDnlzo"]
+    sso_array = os.environ.get("SSO", "").split(',')
     logger.info("开始加载令牌", "Server")
     for sso in sso_array:
         if sso:
