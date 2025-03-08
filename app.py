@@ -691,8 +691,6 @@ def chat_completions():
             CONFIG["SERVER"]['COOKIE'] = f"{CONFIG['API']['SIGNATURE_COOKIE']};{CONFIG['SERVER']['CF_CLEARANCE']}" if CONFIG['SERVER']['CF_CLEARANCE'] else CONFIG['API']['SIGNATURE_COOKIE']
             logger.info(f"当前令牌: {CONFIG['API']['SIGNATURE_COOKIE']}", "Server")
             logger.info(f"可用模型容量: {json.dumps(token_manager.get_remaining_token_request_capacity(), indent=2)}", "Server")
-            logger.info(json.dumps(request_payload, indent=2), "Server")
-
             DEFAULT_HEADERS["User-Agent"] = get_random_user_agent()
             try:
                 response = curl_requests.post(
