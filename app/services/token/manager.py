@@ -672,35 +672,35 @@ class TokenManager:
         for pool in self.pools.values():
             token = pool.get(raw_token)
             if token:
-            if status_code in (400, 401):
-                if threshold is None:
-                    threshold = get_config("token.fail_threshold", FAIL_THRESHOLD)
-                    try:
-                        threshold = int(threshold)
-                    except (TypeError, ValueError):
-                        threshold = FAIL_THRESHOLD
+                if status_code in (400, 401):
+                    if threshold is None:
+                        threshold = get_config("token.fail_threshold", FAIL_THRESHOLD)
+                        try:
+                            threshold = int(threshold)
+                        except (TypeError, ValueError):
+                            threshold = FAIL_THRESHOLD
 
-                if threshold < 1:
-                    threshold = 1
+                    if threshold < 1:
+                        threshold = 1
 
-                token.record_fail(status_code, reason, threshold=threshold)
+                    token.record_fail(status_code, reason, threshold=threshold)
 
-                log_level = (
-                    logger.warning
-                    if token.status == TokenStatus.EXPIRED
-                    else logger.info
-                )
-                log_level(
-                    f"Token {raw_token[:10]}...: recorded {status_code} failure "
-                    f"({token.fail_count}/{threshold}) - {reason} - status: {token.status}"
-                )
-                self._track_token_change(token, pool.name, "state")
-                self._schedule_save()
-            else:
-                logger.info(
-                    f"Token {raw_token[:10]}...: non-auth error ({status_code}) - {reason} (not counted)"
-                )
-            return True
+                    log_level = (
+                        logger.warning
+                        if token.status == TokenStatus.EXPIRED
+                        else logger.info
+                    )
+                    log_level(
+                        f"Token {raw_token[:10]}...: recorded {status_code} failure "
+                        f"({token.fail_count}/{threshold}) - {reason} - status: {token.status}"
+                    )
+                    self._track_token_change(token, pool.name, "state")
+                    self._schedule_save()
+                else:
+                    logger.info(
+                        f"Token {raw_token[:10]}...: non-auth error ({status_code}) - {reason} (not counted)"
+                    )
+                return True
 
         logger.warning(f"Token {raw_token[:10]}...: not found for failure record")
         return False
