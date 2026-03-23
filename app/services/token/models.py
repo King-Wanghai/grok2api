@@ -228,8 +228,8 @@ class TokenInfo(BaseModel):
         threshold: Optional[int] = None,
     ):
         """记录失败，达到阈值后自动标记为 expired"""
-        # 仅 401 计入失败
-        if status_code != 401:
+        # 401 和 400 都计入失败（400 表示 invalid-credentials）
+        if status_code not in (400, 401):
             return
 
         self.fail_count += 1
