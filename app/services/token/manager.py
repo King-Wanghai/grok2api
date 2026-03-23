@@ -170,9 +170,7 @@ class TokenManager:
         self._has_usage_changes = True
         self._usage_change_seq += 1
 
-    def _track_token_change(
-        self, token: TokenInfo, pool_name: str, change_kind: str
-    ):
+    def _track_token_change(self, token: TokenInfo, pool_name: str, change_kind: str):
         token_key = token.token
         if token_key.startswith("sso="):
             token_key = token_key[4:]
@@ -297,7 +295,7 @@ class TokenManager:
             except Exception as e:
                 logger.error(f"Failed to save tokens: {e}")
                 self._dirty = True
-                if 'dirty_tokens' in locals():
+                if "dirty_tokens" in locals():
                     for token_key, meta in dirty_tokens.items():
                         existing = self._dirty_tokens.get(token_key)
                         if existing and existing[1] == "state":
@@ -342,7 +340,12 @@ class TokenManager:
             if self._dirty:
                 self._schedule_save()
 
-    def get_token(self, pool_name: str = "ssoBasic", exclude: set = None, prefer_tags: Optional[Set[str]] = None) -> Optional[str]:
+    def get_token(
+        self,
+        pool_name: str = "ssoBasic",
+        exclude: set = None,
+        prefer_tags: Optional[Set[str]] = None,
+    ) -> Optional[str]:
         """
         获取可用 Token
 
@@ -368,7 +371,9 @@ class TokenManager:
             return token[4:]
         return token
 
-    def get_token_info(self, pool_name: str = "ssoBasic", prefer_tags: Optional[Set[str]] = None) -> Optional["TokenInfo"]:
+    def get_token_info(
+        self, pool_name: str = "ssoBasic", prefer_tags: Optional[Set[str]] = None
+    ) -> Optional["TokenInfo"]:
         """
         获取可用 Token 的完整信息
 
@@ -585,7 +590,9 @@ class TokenManager:
                 )
 
                 if target_pool_name:
-                    change_kind = "state" if target_token.status != old_status else "usage"
+                    change_kind = (
+                        "state" if target_token.status != old_status else "usage"
+                    )
                     self._track_token_change(
                         target_token, target_pool_name, change_kind
                     )
@@ -594,26 +601,39 @@ class TokenManager:
 
         except Exception as e:
             if isinstance(e, UpstreamException):
-                status = e.details.get("status") if e.details else getattr(e, "status_code", None)
-                is_token_expired = e.details.get("is_token_expired", False) if e.details else False
-                
-                if status == 401:
-                    # 只要是 401，都应该记录一次失败，增加 fail_count
-                    reason = "rate_limits_auth_failed" if is_token_expired else "rate_limits_auth_unknown"
-                    
+                status = (
+                    e.details.get("status")
+                    if e.details
+                    else getattr(e, "status_code", None)
+                )
+                is_token_expired = (
+                    e.details.get("is_token_expired", False) if e.details else False
+                )
+
+                if status in (400, 401):
+                    # 400 和 401 都记录失败（400 表示 invalid-credentials）
+                    reason = (
+                        "rate_limits_auth_failed"
+                        if is_token_expired
+                        else "rate_limits_auth_unknown"
+                    )
+
                     # 如果确认为过期，传入 threshold=1 强制立即失效
-                    await self.record_fail(token_str, status, reason, threshold=1 if is_token_expired else None)
-                    
+                    await self.record_fail(
+                        token_str,
+                        status,
+                        reason,
+                        threshold=1 if is_token_expired else None,
+                    )
+
                     if is_token_expired:
                         # 只有确认过期的才跳过 fallback
                         logger.warning(
                             f"Token {raw_token[:10]}...: API sync failed (Confirmed Token Expired), skipping fallback"
                         )
                         return False
-                
-            logger.warning(
-                f"Token {raw_token[:10]}...: API sync failed, error: {e}"
-            )
+
+            logger.warning(f"Token {raw_token[:10]}...: API sync failed, error: {e}")
             # 如果不执行降级扣费（例如在刷新状态时），则直接返回 False 表示同步失败
             if not consume_on_fail:
                 return False
@@ -629,7 +649,11 @@ class TokenManager:
             return False
 
     async def record_fail(
-        self, token_str: str, status_code: int = 401, reason: str = "", threshold: Optional[int] = None
+        self,
+        token_str: str,
+        status_code: int = 401,
+        reason: str = "",
+        threshold: Optional[int] = None,
     ) -> bool:
         """
         记录 Token 失败
@@ -655,13 +679,17 @@ class TokenManager:
                             threshold = int(threshold)
                         except (TypeError, ValueError):
                             threshold = FAIL_THRESHOLD
-                    
+
                     if threshold < 1:
                         threshold = 1
 
                     token.record_fail(status_code, reason, threshold=threshold)
-                    
-                    log_level = logger.warning if token.status == TokenStatus.EXPIRED else logger.info
+
+                    log_level = (
+                        logger.warning
+                        if token.status == TokenStatus.EXPIRED
+                        else logger.info
+                    )
                     log_level(
                         f"Token {raw_token[:10]}...: recorded {status_code} failure "
                         f"({token.fail_count}/{threshold}) - {reason} - status: {token.status}"
@@ -947,7 +975,9 @@ class TokenManager:
                 return getattr(error, "status_code", None)
             return None
 
-        async def _get_usage_with_retry(token_str: str) -> tuple[Optional[dict], Optional[int], Optional[Exception]]:
+        async def _get_usage_with_retry(
+            token_str: str,
+        ) -> tuple[Optional[dict], Optional[int], Optional[Exception]]:
             ctx = RetryContext()
             # Match previous behavior: 3 attempts total (initial + 2 retries).
             ctx.max_retry = min(ctx.max_retry, 2)
@@ -1119,7 +1149,9 @@ class TokenManager:
             max_tokens = DEFAULT_ON_DEMAND_REFRESH_MAX_TOKENS
 
         if self._on_demand_refresh_lock.locked():
-            logger.debug("On-demand refresh skipped: another refresh is already running")
+            logger.debug(
+                "On-demand refresh skipped: another refresh is already running"
+            )
             return {"checked": 0, "refreshed": 0, "recovered": 0, "expired": 0}
 
         now = time.monotonic()
